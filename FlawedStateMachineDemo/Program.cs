@@ -1,19 +1,19 @@
 ﻿using FlawedStateMachineDemo.Models;
 
-var stateMachineData = new byte[] { 1, 2, 3, 4 };
+var stateMachine = new FlawedStateMachine();
 
-var stateMachineCommand = new StateMachineCommand(stateMachineData);
+var stateMachineData = new byte[] { 170, 0};
 
-var stateMachine = new StateMachine(stateMachineCommand);
+// Command sequence causes crash state
 
-stateMachine.Execute();
+stateMachine.ExecuteCommand(stateMachineData);
 
-public class StateMachineCommand
-{
-    public StateMachineCommand(byte[] data)
-    {
-        Data = data;
-    }
+stateMachineData = new byte[] { 187, 0 };
 
-    public byte[] Data { get; }
-}
+stateMachine.ExecuteCommand(stateMachineData);
+
+stateMachineData = new byte[] { 255, 0 };
+
+stateMachine.ExecuteCommand(stateMachineData);
+
+
