@@ -28,7 +28,6 @@
                     case 1:
                         if (command == 0xBB) _state = 2;
                         // Edge case: Potential division by zero if data is zero
-                        if (data != 0) _accumulator /= data;
                         break;
                     case 2:
                         // Reset or trigger a mock deep state error if payload is malformed
