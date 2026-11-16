@@ -22,15 +22,17 @@
 
                     case 0:
                         if (command == 0xAA) _state = 1;
+                        // Edge case: Potential overflow if data is large enough
                         _accumulator += data;
                         break;
                     case 1:
                         if (command == 0xBB) _state = 2;
-                        // Edge case: division by data if command matches
+                        // Edge case: Potential division by zero if data is zero
                         if (data != 0) _accumulator /= data;
                         break;
                     case 2:
                         // Reset or trigger a mock deep state error if payload is malformed
+                        // Edge case: Potential crash if command is 0xFF
                         if (command == 0xFF) throw new InvalidOperationException("Crash state!");
                         _state = 0;
                         break;
