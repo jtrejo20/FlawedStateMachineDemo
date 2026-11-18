@@ -1,6 +1,6 @@
 ﻿using FlawedStateMachineDemo.Models;
 
-var stateMachine = new FlawedStateMachine();
+var stateMachine = new OpticalControllerStateMachine();
 
 var stateMachineData = new byte[] { 170, 0};
 

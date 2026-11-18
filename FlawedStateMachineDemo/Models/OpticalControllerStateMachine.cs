@@ -10,10 +10,9 @@
         Fault = 5
     }
 
-    public class FlawedStateMachine
+    public class OpticalControllerStateMachine
     {
-        
-        private ControllerState _state;
+        private ControllerState _state = ControllerState.Standby;
         private int _accumulator;
         public void ExecuteCommand(byte[] input)
         {
