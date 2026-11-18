@@ -1,9 +1,19 @@
 ﻿namespace FlawedStateMachineDemo.Models
 {
+    public enum ControllerState
+    {
+        Standby = 0,
+        WarmingUp = 1,
+        Calibrating = 2,
+        Armed = 3,
+        Acquiring = 4,
+        Fault = 5
+    }
+
     public class FlawedStateMachine
     {
-
-        private int _state;
+        
+        private ControllerState _state;
         private int _accumulator;
         public void ExecuteCommand(byte[] input)
         {
@@ -20,24 +30,34 @@
                 switch (_state)
                 {
 
-                    case 0:
-                        if (command == 0xAA) _state = 1;
+                    case ControllerState.Standby:
+                        if (command == 0xAA) _state = ControllerState.WarmingUp;
                         // Edge case: Potential overflow if data is large enough
                         _accumulator += data;
                         break;
-                    case 1:
-                        if (command == 0xBB) _state = 2;
+
+                    case ControllerState.WarmingUp:
+                        if (command == 0xBB) _state = ControllerState.Calibrating;
                         // Edge case: Potential division by zero if data is zero
                         break;
-                    case 2:
+
+                    case ControllerState.Calibrating:
                         // Reset or trigger a mock deep state error if payload is malformed
                         // Edge case: Potential crash if command is 0xFF
-                        if (command == 0xFF) throw new InvalidOperationException("Crash state!");
-                        _state = 0;
+                        if (command == 0xFF) _state = ControllerState.Fault;
+                        _state = ControllerState.Armed;
                         break;
-                    default:
-                        _state = 0;
+
+                    case ControllerState.Armed:
+                        _state = ControllerState.Acquiring;
                         break;
+
+                    case ControllerState.Acquiring:
+                        _state = ControllerState.Armed;
+                        break;
+
+                    case ControllerState.Fault:
+                        throw new InvalidOperationException("Crash state!");
                 }
 
             }
