@@ -26,6 +26,8 @@
     public class OpticalControllerStateMachine
     {
         private ControllerState _state = ControllerState.Standby;
+
+        private bool _interlockClosed;
         public void ExecuteCommand(byte[] input)
         {
             // Inputs are expected to be 4 bytes long
@@ -57,11 +59,14 @@
                         if(command == OpCode.SetInterlock)
                         {
                             // Set interlock closed when argument > 0
+                            _interlockClosed = (argument > 0);
                         }
                         if(command == OpCode.TickThermal)
                         {
                             // Use variable to accumulate ticks
+                            
                             // if # of ticks >= 3 && interlock is closed, set state to calibrating
+
                         }
 
                         // Edge case: Potential division by zero if data is zero
@@ -71,11 +76,12 @@
                         if(command == OpCode.SetInterlock && argument == 0)
                         {
                             // Interlock open
+                            _interlockClosed = false;
                             _state = ControllerState.WarmingUp;
                         }
                         if (command == OpCode.RunCalibration)
                         {
-
+                            // Store calibration offset
                             _state = ControllerState.Armed;
                         }
                         break;
@@ -87,6 +93,11 @@
                         }
                         else if (command == OpCode.StartAcquisition)
                         {
+                            if (!_interlockClosed)
+                            {
+                                _state = ControllerState.Fault;
+                                throw new InvalidOperationException("Crash state!");
+                            }
                             _state = ControllerState.Acquiring;
 
                         }
@@ -105,7 +116,7 @@
                         break;
 
                     case ControllerState.Fault:
-                        throw new InvalidOperationException("Crash state!");
+                        break;
                 }
 
             }
