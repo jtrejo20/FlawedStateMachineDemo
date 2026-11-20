@@ -26,7 +26,6 @@
     public class OpticalControllerStateMachine
     {
         private ControllerState _state = ControllerState.Standby;
-        private int _accumulator;
         public void ExecuteCommand(byte[] input)
         {
             // Inputs are expected to be 4 bytes long
@@ -39,7 +38,7 @@
 
             OpCode command = (OpCode)input[0];
 
-            byte data = input[1];
+            ushort argument = (ushort)((input[1] << 8) | input[2]);
             
             checked
             {
@@ -47,29 +46,62 @@
                 {
 
                     case ControllerState.Standby:
-                        if (command == OpCode.StartWarmingUp) _state = ControllerState.WarmingUp;
+                        if (command == OpCode.StartWarmingUp)
+                        {
+                            _state = ControllerState.WarmingUp;
+                        }
                         // Edge case: Potential overflow if data is large enough
-                        _accumulator += data;
                         break;
 
                     case ControllerState.WarmingUp:
-                        if (command == OpCode.RunCalibration) _state = ControllerState.Calibrating;
+                        if(command == OpCode.SetInterlock)
+                        {
+                            // Set interlock closed when argument > 0
+                        }
+                        if(command == OpCode.TickThermal)
+                        {
+                            // Use variable to accumulate ticks
+                            // if # of ticks >= 3 && interlock is closed, set state to calibrating
+                        }
+
                         // Edge case: Potential division by zero if data is zero
                         break;
 
                     case ControllerState.Calibrating:
-                        // Reset or trigger a mock deep state error if payload is malformed
-                        // Edge case: Potential crash if command is 0xFF
-                        if (command == OpCode.Reset) _state = ControllerState.Fault;
-                        _state = ControllerState.Armed;
+                        if(command == OpCode.SetInterlock && argument == 0)
+                        {
+                            // Interlock open
+                            _state = ControllerState.WarmingUp;
+                        }
+                        if (command == OpCode.RunCalibration)
+                        {
+
+                            _state = ControllerState.Armed;
+                        }
                         break;
 
                     case ControllerState.Armed:
-                        _state = ControllerState.Acquiring;
+                        if (command == OpCode.SetExposure)
+                        {
+                            // Set exposure
+                        }
+                        else if (command == OpCode.StartAcquisition)
+                        {
+                            _state = ControllerState.Acquiring;
+
+                        }
                         break;
 
                     case ControllerState.Acquiring:
-                        _state = ControllerState.Armed;
+                        if(command == OpCode.ReadFrame)
+                        {
+
+                        }
+                        else if (command == OpCode.ArmLaser)
+                        {
+                            _state = ControllerState.Armed;
+
+                        }
                         break;
 
                     case ControllerState.Fault:
