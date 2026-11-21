@@ -43,10 +43,25 @@
             ushort argument = (ushort)((input[1] << 8) | input[2]);
 
             // Store flag in varable if needed
+            byte flag = input[3];
+
 
             checked
             {
-                // check for reset command, which is valid in any state
+                // check for reset command, which is valid in any state,
+                // execute warm reset if flag is set to 0x01, otherwise do nothing
+                if (command == OpCode.Reset)
+                {
+                    // Reset frame buffer
+                    // Reset thermal tick counter
+
+                    // Causes state-desynchronization if flag is set to 0x01
+                    if (flag != 0x01)
+                    {
+                        _state = ControllerState.Standby;
+                    }
+
+                }
                 switch (_state)
                 {
                     case ControllerState.Standby:
