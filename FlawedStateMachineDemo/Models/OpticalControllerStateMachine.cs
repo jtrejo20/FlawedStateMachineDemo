@@ -41,24 +41,23 @@
             OpCode command = (OpCode)input[0];
 
             ushort argument = (ushort)((input[1] << 8) | input[2]);
-            
+
+            // Store flag in varable if needed
+
             checked
             {
+                // check for reset command, which is valid in any state
                 switch (_state)
                 {
-
                     case ControllerState.Standby:
                         if (command == OpCode.StartWarmingUp)
                         {
                             _state = ControllerState.WarmingUp;
                         }
-                        // Edge case: Potential overflow if data is large enough
                         break;
-
                     case ControllerState.WarmingUp:
                         if(command == OpCode.SetInterlock)
                         {
-                            // Set interlock closed when argument > 0
                             _interlockClosed = (argument > 0);
                         }
                         if(command == OpCode.TickThermal)
@@ -68,14 +67,11 @@
                             // if # of ticks >= 3 && interlock is closed, set state to calibrating
 
                         }
-
-                        // Edge case: Potential division by zero if data is zero
                         break;
 
                     case ControllerState.Calibrating:
                         if(command == OpCode.SetInterlock && argument == 0)
                         {
-                            // Interlock open
                             _interlockClosed = false;
                             _state = ControllerState.WarmingUp;
                         }
@@ -93,29 +89,33 @@
                         }
                         else if (command == OpCode.StartAcquisition)
                         {
+                            // Interlock must be closed to start acquisition, otherwise crash the state machine
                             if (!_interlockClosed)
                             {
                                 _state = ControllerState.Fault;
                                 throw new InvalidOperationException("Crash state!");
                             }
+                            // Calculate framerate based on exposure time 
+                            // Allocate memory for frame buffer
                             _state = ControllerState.Acquiring;
-
                         }
                         break;
 
                     case ControllerState.Acquiring:
                         if(command == OpCode.ReadFrame)
                         {
-
+                            // Calculate pixel index based on argument and buffer size
+                            // Read pixel value from buffer and return to caller
                         }
                         else if (command == OpCode.ArmLaser)
                         {
+                            // Free buffer memory
                             _state = ControllerState.Armed;
-
-                        }
+                        } 
                         break;
 
                     case ControllerState.Fault:
+                        // Locked until reset command is received
                         break;
                 }
 
