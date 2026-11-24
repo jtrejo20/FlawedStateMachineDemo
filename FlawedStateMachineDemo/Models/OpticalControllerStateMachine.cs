@@ -28,6 +28,10 @@
         private ControllerState _state = ControllerState.Standby;
 
         private bool _interlockClosed;
+        private byte[]? _frameBuffer; 
+        private ushort _exposureInMicroseconds = 200;
+        private int _thermalTickCounter;
+        private int _calibrationOffset;
         public void ExecuteCommand(byte[] input)
         {
             // Inputs are expected to be 4 bytes long
@@ -53,13 +57,17 @@
                 if (command == OpCode.Reset)
                 {
                     // Reset frame buffer
+                    _frameBuffer = null;
+
                     // Reset thermal tick counter
+                    _thermalTickCounter = 0;
 
                     // Causes state-desynchronization if flag is set to 0x01
                     if (flag != 0x01)
                     {
                         _state = ControllerState.Standby;
                     }
+                    return;
 
                 }
                 switch (_state)
@@ -78,9 +86,13 @@
                         if(command == OpCode.TickThermal)
                         {
                             // Use variable to accumulate ticks
-                            
-                            // if # of ticks >= 3 && interlock is closed, set state to calibrating
+                            _thermalTickCounter++;
 
+                            // if # of ticks >= 3 && interlock is closed, set state to calibrating
+                            if(_thermalTickCounter >= 3 && _interlockClosed)
+                            {
+                                _state = ControllerState.Calibrating;
+                            }
                         }
                         break;
 
@@ -92,6 +104,9 @@
                         }
                         if (command == OpCode.RunCalibration)
                         {
+                            // Bug 2 (Argument/ Hardware Register Fault)
+                            // If argument is 0xFFFF
+                            _calibrationOffset = (short)argument; 
                             // Store calibration offset
                             _state = ControllerState.Armed;
                         }
@@ -100,7 +115,9 @@
                     case ControllerState.Armed:
                         if (command == OpCode.SetExposure)
                         {
-                            // Set exposure
+                            // Bug (Zero-Exposure Fault): Setting exposure to 0 is allowed but
+                            // will cause a crash state when starting acquisition
+                            _exposureInMicroseconds = argument; // Assuming argument is in milliseconds
                         }
                         else if (command == OpCode.StartAcquisition)
                         {
@@ -110,8 +127,9 @@
                                 _state = ControllerState.Fault;
                                 throw new InvalidOperationException("Crash state!");
                             }
-                            // Calculate framerate based on exposure time 
-                            // Allocate memory for frame buffer
+
+                            int frameRate = 1000000/ _exposureInMicroseconds; 
+                            _frameBuffer = new byte[Math.Min(frameRate, 4096)];
                             _state = ControllerState.Acquiring;
                         }
                         break;
@@ -120,11 +138,14 @@
                         if(command == OpCode.ReadFrame)
                         {
                             // Calculate pixel index based on argument and buffer size
+                            int pixelIndex = argument % _frameBuffer!.Length; // Throws NullReferenceException
                             // Read pixel value from buffer and return to caller
+                            byte pixelValue = (byte)(_frameBuffer[pixelIndex] + _calibrationOffset);
                         }
                         else if (command == OpCode.ArmLaser)
                         {
                             // Free buffer memory
+                            _frameBuffer = null;
                             _state = ControllerState.Armed;
                         } 
                         break;
