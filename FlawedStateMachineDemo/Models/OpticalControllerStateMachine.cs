@@ -28,6 +28,23 @@
         private ControllerState _state = ControllerState.Standby;
 
         private bool _interlockClosed;
+        private byte[]? _frameBuffer; 
+        private ushort _exposureInMicroseconds = 200;
+        private int _thermalTickCounter;
+        private int _calibrationOffset;
+
+        public void ExecuteStream(byte[] stream)
+        {
+            if(stream == null || stream.Length < 4) return;
+            
+            for(var offset = 0; offset < stream.Length; offset += 4)
+            {
+                var command = new byte[4];
+                Array.Copy(stream, offset, command, 0, Math.Min(4, stream.Length - offset));
+                ExecuteCommand(command);
+            }
+        }
+
         public void ExecuteCommand(byte[] input)
         {
             // Inputs are expected to be 4 bytes long
@@ -43,10 +60,29 @@
             ushort argument = (ushort)((input[1] << 8) | input[2]);
 
             // Store flag in varable if needed
+            byte flag = input[3];
+
 
             checked
             {
-                // check for reset command, which is valid in any state
+                // check for reset command, which is valid in any state,
+                // execute warm reset if flag is set to 0x01, otherwise do nothing
+                if (command == OpCode.Reset)
+                {
+                    // Reset frame buffer
+                    _frameBuffer = null;
+
+                    // Reset thermal tick counter
+                    _thermalTickCounter = 0;
+
+                    // Causes state-desynchronization if flag is set to 0x01
+                    if (flag != 0x01)
+                    {
+                        _state = ControllerState.Standby;
+                    }
+                    return;
+
+                }
                 switch (_state)
                 {
                     case ControllerState.Standby:
@@ -63,9 +99,13 @@
                         if(command == OpCode.TickThermal)
                         {
                             // Use variable to accumulate ticks
-                            
-                            // if # of ticks >= 3 && interlock is closed, set state to calibrating
+                            _thermalTickCounter++;
 
+                            // if # of ticks >= 3 && interlock is closed, set state to calibrating
+                            if(_thermalTickCounter >= 3 && _interlockClosed)
+                            {
+                                _state = ControllerState.Calibrating;
+                            }
                         }
                         break;
 
@@ -77,6 +117,9 @@
                         }
                         if (command == OpCode.RunCalibration)
                         {
+                            // Bug 2 (Argument/ Hardware Register Fault)
+                            // If argument is 0xFFFF
+                            _calibrationOffset = (short)argument; 
                             // Store calibration offset
                             _state = ControllerState.Armed;
                         }
@@ -85,7 +128,9 @@
                     case ControllerState.Armed:
                         if (command == OpCode.SetExposure)
                         {
-                            // Set exposure
+                            // Bug (Zero-Exposure Fault): Setting exposure to 0 is allowed but
+                            // will cause a crash state when starting acquisition
+                            _exposureInMicroseconds = argument; // Assuming argument is in milliseconds
                         }
                         else if (command == OpCode.StartAcquisition)
                         {
@@ -95,8 +140,9 @@
                                 _state = ControllerState.Fault;
                                 throw new InvalidOperationException("Crash state!");
                             }
-                            // Calculate framerate based on exposure time 
-                            // Allocate memory for frame buffer
+
+                            int frameRate = 1000000/ _exposureInMicroseconds; 
+                            _frameBuffer = new byte[Math.Min(frameRate, 4096)];
                             _state = ControllerState.Acquiring;
                         }
                         break;
@@ -105,11 +151,14 @@
                         if(command == OpCode.ReadFrame)
                         {
                             // Calculate pixel index based on argument and buffer size
+                            int pixelIndex = argument % _frameBuffer!.Length; // Throws NullReferenceException
                             // Read pixel value from buffer and return to caller
+                            byte pixelValue = (byte)(_frameBuffer[pixelIndex] + _calibrationOffset);
                         }
                         else if (command == OpCode.ArmLaser)
                         {
                             // Free buffer memory
+                            _frameBuffer = null;
                             _state = ControllerState.Armed;
                         } 
                         break;
