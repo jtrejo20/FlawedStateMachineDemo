@@ -32,6 +32,19 @@
         private ushort _exposureInMicroseconds = 200;
         private int _thermalTickCounter;
         private int _calibrationOffset;
+
+        public void ExecuteStream(byte[] stream)
+        {
+            if(stream == null || stream.Length < 4) return;
+            
+            for(var offset = 0; offset < stream.Length; offset += 4)
+            {
+                var command = new byte[4];
+                Array.Copy(stream, offset, command, 0, Math.Min(4, stream.Length - offset));
+                ExecuteCommand(command);
+            }
+        }
+
         public void ExecuteCommand(byte[] input)
         {
             // Inputs are expected to be 4 bytes long
